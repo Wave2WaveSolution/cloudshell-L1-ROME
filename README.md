@@ -19,9 +19,9 @@ In step 7 at the above guide, you will need to copy only one exe file, and inste
 
 ### Supported Functionality
 *
-| AutoLoad | Creates the sub-resources of the L1 switch |
-| MapBidi | Creates a bi-directional connection between two ports |
-| MapUni | Creates a uni-directional connection between two ports |
-| MapClear | Clears any connection ending in this port |
-| MapClearTo | Clears a uni-directional connection between two ports |
+* AutoLoad : Creates the sub-resources of the L1 switch
+* MapBidi : Creates a bi-directional connection between two ports
+* MapUni : Creates a uni-directional connection between two ports
+* MapClear : Clears any connection ending in this port
+* MapClearTo : Clears a uni-directional connection between two ports
 
