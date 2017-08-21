@@ -125,8 +125,8 @@ class RomeDriverHandler(DriverHandlerBase):
         """
         # Collect port info
         self._logger = command_logger
-        port1 = src_port[2].strip("0")
-        port2 = dst_port[2].strip("0")
+        port1 = src_port[2].lstrip("0")
+        port2 = dst_port[2].lstrip("0")
         self._logger.info('Creating Duplex e%s to w%s' % (port1, port2))
 
         # Create a duplex connection
@@ -182,8 +182,8 @@ class RomeDriverHandler(DriverHandlerBase):
         self._logger = command_logger
 
         # Collect Port range information
-        start_port = src_port[2].strip("0")
-        end_port = dst_port[2].strip("0")
+        start_port = src_port[2].lstrip("0")
+        end_port = dst_port[2].lstrip("0")
         self._logger.info("Disconnection Range Initiated")
 
         # Initiate a disconnect range command
@@ -212,8 +212,8 @@ class RomeDriverHandler(DriverHandlerBase):
         self._logger = command_logger
 
         # Collect information for a simplex disconnection command
-        port1 = src_port[2].strip("0")
-        port2 = dst_port[2].strip("0")
+        port1 = src_port[2].lstrip("0")
+        port2 = dst_port[2].lstrip("0")
         self._logger.info("Disconnecting e%s from w%s" % (port1, port2))
 
         # Initiate Disconnection Command
