@@ -129,12 +129,19 @@ class RomeDriverHandler(DriverHandlerBase):
         port2 = dst_port[2].lstrip("0")
         self._logger.info('Creating Duplex e%s to w%s' % (port1, port2))
 
-        # Create a duplex connection
-        command1 = "con cr e%s t w%s" % (port1, port2)
-        command2 = "con cr e%s t w%s" % (port2, port1)
-        self.connection.write(command1 + " \n")
-        self.connection.write(command2 + " \n")
-        self._logger.info("Connection Create Initiated")
+        # Attempt to create a duplex connection
+        try:
+
+            command1 = "con cr e%s t w%s" % (port1, port2)
+            command2 = "con cr e%s t w%s" % (port2, port1)
+            self.connection.write(command1 + " \n")
+            self.connection.write(command2 + " \n")
+            self._logger.info("Connection Create Initiated")
+            self.connection.close()
+            self._logger.info("Telnet Connection Closed")
+
+        except BaseException:
+            self._logger.info('Connection error')
 
     def map_uni(self, src_port, dst_port, command_logger):
         """Create a unidirectional connection between source and destination ports
@@ -159,10 +166,15 @@ class RomeDriverHandler(DriverHandlerBase):
         self._logger.info('Creating Simplex e%s to w%s' % (port1, port2))
 
         # Create a simplex connection
+        try:
+            command = "con cr e%s t w%s" % (port1, port2)
+            self.connection.write(command + "\n")
+            self._logger.info("Connection Create Initiated")
+            self.connection.close()
+            self._logger.info("Telnet Connection Closed")
+        except BaseException:
+            self._logger.info('Connection error')
 
-        command = "con cr e%s t w%s" % (port1, port2)
-        self.connection.write(command + "\n")
-        self._logger.info("Connection Create Initiated")
 
     def map_clear_to(self, src_port, dst_port, command_logger):
         """Remove simplex/multi-cast/duplex connection ending on the destination port
@@ -189,10 +201,16 @@ class RomeDriverHandler(DriverHandlerBase):
         # Initiate a disconnect range command
         command = "con di range w%s t w%s" % (start_port, end_port)
         yes_command = "y \n"
-        self.connection.write(command + "\n")
-        self._logger.info("Disconnect Command Sent %s" % command)
-        self.connection.write(yes_command)
-        self._logger.info("%s Sent" % yes_command)
+
+        try:
+            self.connection.write(command + "\n")
+            self._logger.info("Disconnect Command Sent %s" % command)
+            self.connection.write(yes_command)
+            self._logger.info("%s Sent" % yes_command)
+            self.connection.close()
+            self._logger.info("Telnet Connection Closed")
+        except BaseException:
+            self._logger.info('Connection error')
 
     def map_clear(self, src_port, dst_port, command_logger):
         """Remove simplex/multi-cast/duplex connection ending on the destination port
@@ -215,11 +233,16 @@ class RomeDriverHandler(DriverHandlerBase):
         port1 = src_port[2].lstrip("0")
         port2 = dst_port[2].lstrip("0")
         self._logger.info("Disconnecting e%s from w%s" % (port1, port2))
+        command = "con di e%s f w%s" % (port1, port2)
 
         # Initiate Disconnection Command
-        command = "con di e%s f w%s" % (port1, port2)
-        self.connection.write(command + "\n")
-        self._logger.info("Connection Disconnection Initiated")
+        try:
+            self.connection.write(command + "\n")
+            self._logger.info("Connection Disconnection Initiated")
+            self.connection.close()
+            self._logger.info("Telnet Connection Closed")
+        except BaseException:
+            self._logger.info('Connection error')
 
     # Unused Method
     def set_speed_manual(self, command_logger):
