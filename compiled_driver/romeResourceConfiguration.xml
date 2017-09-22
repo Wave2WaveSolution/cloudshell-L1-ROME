@@ -41,7 +41,7 @@
     </Module>
   </Modules>
   <ResourceFamilies>
-    <ResourceFamily Name="None" IsMappableContainer="true" IsMappable="false" IsConnectable="false" IsLicenseCheckRequired="false" IsAllConnectedContainer="false" IsLockedByDefault="false" AcceptsMultipleConnections="false" Description="" SupportsMulticastMapping="false" SupportsLoopbackMapping="true" IsPowerSwitch="false" IsConsoleServer="false">
+    <ResourceFamily Name="L1 Robotic Switch" IsMappableContainer="true" IsMappable="false" IsConnectable="false" IsLicenseCheckRequired="false" IsAllConnectedContainer="false" IsLockedByDefault="false" AcceptsMultipleConnections="false" Description="" SupportsMulticastMapping="false" SupportsLoopbackMapping="true" IsPowerSwitch="false" IsConsoleServer="false">
       <AttachedAttributes>
         <AttachedAttribute Name="User" IsOverridable="true" IsLocal="true">
           <AllowedValues />

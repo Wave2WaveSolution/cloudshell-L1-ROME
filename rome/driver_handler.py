@@ -86,7 +86,7 @@ class RomeDriverHandler(DriverHandlerBase):
         resource_info.set_model_name(switch_Model)
 
         # Step 2. Create child resources for the root element (blades):
-        for blade_no in range(1, 2):
+        for blade_no in range(1, 3):
             blade_resource = ResourceInfo()
             blade_resource.set_depth(depth + 1)
             blade_resource.set_index(str(blade_no))
@@ -94,7 +94,9 @@ class RomeDriverHandler(DriverHandlerBase):
             resource_info.add_child(blade_no, blade_resource)
 
             # Step 3. Create child resources for each root sub-resource (ports in blades)
-            for port_no in range(1, 257):
+            for port_no in range(1, 129):
+                if blade_no == 2:
+                    port_no += 128
                 port_resource = ResourceInfo()
                 port_resource.set_depth(depth + 2)
                 port_resource.set_index(str(port_no).zfill(3))
