@@ -35,15 +35,7 @@ class RomeDriverHandler(DriverHandlerBase):
         self._logger.info('Device Prompt: ' + str(self._prompt))
 
         # Create Telnet session
-        """
-        Attempt 2 Using _session
-        Not working
-        self._logger.info('Attempting to create a Telnet session')
-        self._session.connect(address, username, password, port = self._port, re_string=self._prompt)
-        self._logger.info('Connection Created')
-        """
 
-        # Attempt 1 using telnet
         self._logger.info('Creating Telnet Connection')
         self.connection = telnetlib.Telnet(address)
         self.connection.write(username + "\n")
@@ -60,8 +52,6 @@ class RomeDriverHandler(DriverHandlerBase):
         """
 
         self._logger = command_logger
-
-        # Attempt 3
 
         # Step 1. Create root element (switch):
         depth = 0
@@ -105,11 +95,6 @@ class RomeDriverHandler(DriverHandlerBase):
 
         self._logger.info('switch: %s' % (str(vars(resource_info))))
 
-        # for num in range(1,256):
-        #
-        #    east_port = "e" + str(num)
-        #    west_port = "w" + str(num)
-
         return resource_info.convert_to_xml()
 
     def map_bidi(self, src_port, dst_port, command_logger):
@@ -120,10 +105,6 @@ class RomeDriverHandler(DriverHandlerBase):
         :param command_logger: logging.Logger instance
         :return: None
 
-        Example:
-        error_map = OrderedDict([
-            ("error|ERROR", "Failed to perform command"),
-        ])
         """
         # Collect port info
         self._logger = command_logger
@@ -153,12 +134,6 @@ class RomeDriverHandler(DriverHandlerBase):
         :param command_logger: logging.Logger instance
         :return: None
 
-        Example:
-        error_map = OrderedDict([
-            ("error|ERROR", "Failed to perform command"),
-        ])
-        command = "connect simplex {} to {}".format(src_port, dst_port)
-        self._session.send_command(command, re_string=self._prompt, error_map=error_map)
         """
         self._logger = command_logger
 
@@ -186,12 +161,6 @@ class RomeDriverHandler(DriverHandlerBase):
         :param command_logger: logging.Logger instance
         :return: None
 
-        Example:
-        error_map = OrderedDict([
-            ("error|ERROR", "Failed to perform command"),
-        ])
-        command = "disconnect simplex {} from {}".format(src_port, dst_port)
-        self._session.send_command(command, re_string=self._prompt, error_map=error_map)
         """
         self._logger = command_logger
 
@@ -222,12 +191,6 @@ class RomeDriverHandler(DriverHandlerBase):
         :param command_logger: logging.Logger instance
         :return: None
 
-        Example:
-        error_map = OrderedDict([
-            ("error|ERROR", "Failed to perform command"),
-        ])
-        command = "disconnect duplex {} from {}".format(src_port, dst_port)
-        self._session.send_command(command, re_string=self._prompt, error_map=error_map)
         """
         self._logger = command_logger
 

@@ -11,11 +11,16 @@ The driver has been verified with the following devices and software versions:
 ROME500 1.9.1.1
 
 ### Installation
+"Rome.exe", "rome_runtime_configuration.json", and RomeResourceConfiguration.xml are the only files required. 
 
-Follow the instructions in the link below for installation:
-http://help.quali.com/Online%20Help/7.0.0.0/Portal/Content/Admn/Cnct-Ctrl-L1-Swch.htm
+1) Copy "Rome.exe" and "rome_runtime_configuration.json" 
+   to "c:\Program Files (x86)\QualiSystems\CloudShell\Server\Drivers"
+   
+2) Open Cloudshell Resource Manager
 
-In step 7 at the above guide, you will need to copy only one exe file, and instead of the runtimeConfig.xml file please copy the rome_runtime_configuration.json file.
+3) Right-click resource families folder and select import
+
+4) Import "RomeResourceConfiguration.xml"
 
 ### Supported Functionality
 *
