@@ -27,17 +27,19 @@ class RomeDriverHandler(DriverHandlerBase):
         # Get port
         self._port = ConfigurationParser.get("common_variable", "connection_port")
 
+        addr = address.split(":")[0]
+
         # Print out device login information
         self._logger = command_logger
         self._logger.info('Attempting to Conenct')
-        self._logger.info('Device address is: ' + str(address))
+        self._logger.info('Device address is: ' + str(addr))
         self._logger.info('Username: ' + str(username))
         self._logger.info('Device Prompt: ' + str(self._prompt))
 
         # Create Telnet session
 
         self._logger.info('Creating Telnet Connection')
-        self.connection = telnetlib.Telnet(address)
+        self.connection = telnetlib.Telnet(addr)
         self.connection.write(username + "\n")
         self.connection.write(password + "\n")
         self._logger.info('Connected')
@@ -75,32 +77,48 @@ class RomeDriverHandler(DriverHandlerBase):
         resource_info.add_attribute("Software Version", "1.0.0")
         resource_info.set_model_name(switch_Model)
 
+        letter = ""
+
+        if 'A' in address:
+            letter = "A"
+        elif 'B' in address:
+            letter = "B"
+
         # Step 2. Create child resources for the root element (blades):
-        for blade_no in range(1, 3):
-
-            if(blade_no == 1):
-                letter = "A"
-            else:
-                letter = "B"
-
+        for blade_no in range(1, 2):
             blade_resource = ResourceInfo()
             blade_resource.set_depth(depth + 1)
             blade_resource.set_index(str(blade_no))
             blade_resource.set_model_name(blade_Model)
-            blade_resource.set_address(address + ":" +  ("Matrix%s" % letter))
+            blade_resource.set_address(address + ":" + ("Matrix%s" % letter))
             resource_info.add_child(blade_no, blade_resource)
 
             # Step 3. Create child resources for each root sub-resource (ports in blades)
-            for port_no in range(1, 129):
-                if blade_no == 2:
-                    port_no += 128
-                port_resource = ResourceInfo()
-                port_resource.set_depth(depth + 2)
-                port_resource.set_index(str(port_no).zfill(3))
-                port_resource.set_model_name(port_Model)
-                blade_resource.add_child(port_no, port_resource)
 
-        self._logger.info('switch: %s' % (str(vars(resource_info))))
+            if (letter is "A"):
+                for port_no in range(1, 129):
+                    port_resource = ResourceInfo()
+                    port_resource.set_depth(depth + 2)
+                    port_resource.set_index(str(port_no).zfill(3))
+                    port_resource.set_model_name(port_Model)
+                    blade_resource.add_child(port_no, port_resource)
+            elif (letter is "B"):
+                for port_no in range(129, 257):
+                    port_resource = ResourceInfo()
+                    port_resource.set_depth(depth + 2)
+                    port_resource.set_index(str(port_no).zfill(3))
+                    port_resource.set_model_name(port_Model)
+                    blade_resource.add_child(port_no, port_resource)
+            else:
+                for port_no in range(1, 129):
+                    port_resource = ResourceInfo()
+                    port_resource.set_depth(depth + 2)
+                    port_resource.set_index(str(port_no).zfill(3))
+                    port_resource.set_model_name(port_Model)
+                    blade_resource.add_child(port_no, port_resource)
+
+        #self._logger.info('switch: %s' % (str(vars(resource_info))))
+        self.connection.close()
 
         return resource_info.convert_to_xml()
 
@@ -116,33 +134,20 @@ class RomeDriverHandler(DriverHandlerBase):
         # Collect port info
         self._logger = command_logger
 
-        #Boolean check
-        allowed = True
-
-        #Split the address string
-        src_matrix = src_port[0].split(":")[1]
-        dst_matrix = src_port[0].split(":")[1]
-
-        #Check if it is allowed
-        if src_matrix is not dst_matrix:
-            allowed = False
-
         port1 = src_port[2].lstrip("0")
         port2 = dst_port[2].lstrip("0")
         self._logger.info('Creating Duplex e%s to w%s' % (port1, port2))
 
         # Attempt to create a duplex connection
         try:
-            if allowed:
-                command1 = "con cr e%s t w%s" % (port1, port2)
-                command2 = "con cr e%s t w%s" % (port2, port1)
-                self.connection.write(command1 + " \n")
-                self.connection.write(command2 + " \n")
-                self._logger.info("Connection Create Initiated")
-                self.connection.close()
-                self._logger.info("Telnet Connection Closed")
-            else:
-                self._logger.info("Connection is not allowed between matricies")
+            command1 = "con cr e%s t w%s" % (port1, port2)
+            command2 = "con cr e%s t w%s" % (port2, port1)
+            self.connection.write(command1 + " \n")
+            self.connection.write(command2 + " \n")
+            self._logger.info("Reached 1")
+            self._logger.info("Connection Create Initiated")
+            self.connection.close()
+            self._logger.info("Telnet Connection Closed")
 
         except BaseException:
             self._logger.info('Connection error')
@@ -158,17 +163,6 @@ class RomeDriverHandler(DriverHandlerBase):
         """
         self._logger = command_logger
 
-        # Boolean check
-        allowed = True
-
-        # Split the address string
-        src_matrix = src_port[0].split(":")[1]
-        dst_matrix = src_port[0].split(":")[1]
-
-        # Check if it is allowed
-        if src_matrix is not dst_matrix:
-            allowed = False
-
         # Collect port information
         port1 = src_port[2]
         port2 = dst_port[2]
@@ -176,14 +170,11 @@ class RomeDriverHandler(DriverHandlerBase):
 
         # Create a simplex connection
         try:
-            if allowed:
-                command = "con cr e%s t w%s" % (port1, port2)
-                self.connection.write(command + "\n")
-                self._logger.info("Connection Create Initiated")
-                self.connection.close()
-                self._logger.info("Telnet Connection Closed")
-            else:
-                self._logger.info("Connection is not allowed between matricies")
+            command = "con cr e%s t w%s" % (port1, port2)
+            self.connection.write(command + "\n")
+            self._logger.info("Connection Create Initiated")
+            self.connection.close()
+            self._logger.info("Telnet Connection Closed")
         except BaseException:
             self._logger.info('Connection error')
 
@@ -199,17 +190,6 @@ class RomeDriverHandler(DriverHandlerBase):
         """
         self._logger = command_logger
 
-        # Boolean check
-        allowed = True
-
-        # Split the address string
-        src_matrix = src_port[0].split(":")[1]
-        dst_matrix = src_port[0].split(":")[1]
-
-        # Check if it is allowed
-        if src_matrix is not dst_matrix:
-            allowed = False
-
         # Collect Port range information
         start_port = src_port[2].lstrip("0")
         end_port = dst_port[2].lstrip("0")
@@ -220,15 +200,12 @@ class RomeDriverHandler(DriverHandlerBase):
         yes_command = "y \n"
 
         try:
-            if allowed:
-                self.connection.write(command + "\n")
-                self._logger.info("Disconnect Command Sent %s" % command)
-                self.connection.write(yes_command)
-                self._logger.info("%s Sent" % yes_command)
-                self.connection.close()
-                self._logger.info("Telnet Connection Closed")
-            else:
-                self._logger.info("Disconnect is not allowed between matricies")
+            self.connection.write(command + "\n")
+            self._logger.info("Disconnect Command Sent %s" % command)
+            self.connection.write(yes_command)
+            self._logger.info("%s Sent" % yes_command)
+            self.connection.close()
+            self._logger.info("Telnet Connection Closed")
         except BaseException:
             self._logger.info('Connection error')
 
@@ -243,17 +220,6 @@ class RomeDriverHandler(DriverHandlerBase):
         """
         self._logger = command_logger
 
-        # Boolean check
-        allowed = True
-
-        # Split the address string
-        src_matrix = src_port[0].split(":")[1]
-        dst_matrix = src_port[0].split(":")[1]
-
-        # Check if it is allowed
-        if src_matrix is not dst_matrix:
-            allowed = False
-
         # Collect information for a simplex disconnection command
         port1 = src_port[2].lstrip("0")
         port2 = dst_port[2].lstrip("0")
@@ -262,13 +228,10 @@ class RomeDriverHandler(DriverHandlerBase):
 
         # Initiate Disconnection Command
         try:
-            if allowed:
-                self.connection.write(command + "\n")
-                self._logger.info("Connection Disconnection Initiated")
-                self.connection.close()
-                self._logger.info("Telnet Connection Closed")
-            else:
-                self._logger.info("Connection is not allowe between matricies")
+            self.connection.write(command + "\n")
+            self._logger.info("Connection Disconnection Initiated")
+            self.connection.close()
+            self._logger.info("Telnet Connection Closed")
         except BaseException:
             self._logger.info('Connection error')
 
