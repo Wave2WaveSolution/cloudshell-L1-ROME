@@ -1,0 +1,12 @@
+{
+  "driver_variable": {
+    "switch_family": "L1 Robotic Switch",
+	"switch_model": "Rome",
+	
+	"blade_family" : "Rome Blade",
+	"blade_model" : "Rome Blade",
+	
+	"port_family" : "Rome Port",
+	"port_model" : "Rome Port"
+  }
+}
