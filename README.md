@@ -8,7 +8,7 @@ End users will be able to create routes, configure port settings, and read value
 
 ### Supported Devices/Firmwares
 The driver has been verified with the following devices and software versions:
-ROME500 1.9.1.1
+ROME500 1.9.3.1
 
 ### Installation
 "Rome.exe", "rome_runtime_configuration.json", and RomeResourceConfiguration.xml are the only files required. 
