@@ -6,6 +6,7 @@ from cloudshell.core.logger.qs_logger import get_qs_logger
 
 # importing telnet library python
 import telnetlib
+import time
 
 """
 Created by: Hezekiah Valdez
@@ -23,34 +24,47 @@ class RomeDriverHandler(DriverHandlerBase):
         self._driver_name = ConfigurationParser.get("common_variable", "driver_name")
         self._logger = None
         self._connection = None
+        self._device_address = ''
+        self._device_user = ''
+        self._device_password = ''
+        self._port = ''
 
-
-    def login(self, address, username="SuperUser", password="superuser", command_logger=None):
+    def login(self, address, username, password, command_logger=None):
         # Get port
         self._port = ConfigurationParser.get("common_variable", "connection_port")
 
         addr = address.split(":")[0]
+        if self._device_address != addr or self._device_user != username or self._device_password != password:
+            self._connection = None
+
+        self._device_address = addr
+        self._device_user = username
+        self._device_password = password
 
         # Print out device login information
         self._logger = command_logger
-        self._logger.info('Attempting to Conenct')
-        self._logger.info('Device address is: ' + str(addr))
+        self._logger.info('Attempting to Connect')
+        self._logger.info('Device address is: ' + str(addr) + ', port: ' + str(self._port))
         self._logger.info('Username: ' + str(username))
         self._logger.info('Device Prompt: ' + str(self._prompt))
 
+        self._create_connection()
+
+    def _create_connection(self):
         # Create Telnet session if needed
         if self._connection:
             try:
                 self._connection.write("\n")
             except Exception as ex:
                 self._logger.info('Connection is probably closed, starting a new one')
+                self._logger.info(ex.message)
                 self._connection = None
 
         if self._connection is None:
             self._logger.info('Creating Telnet Connection')
-            self._connection = telnetlib.Telnet(addr)
-            self._connection.write(username + "\n")
-            self._connection.write(password + "\n")
+            self._connection = telnetlib.Telnet(self._device_address, self._port)
+            self._connection.write(self._device_user + "\n")
+            self._connection.write(self._device_password + "\n")
             self._logger.info('Connected')
 
 
@@ -62,7 +76,6 @@ class RomeDriverHandler(DriverHandlerBase):
         :return: xml.etree.ElementTree.Element instance with all switch sub-resources (blades, ports)
 
         """
-
         self._logger = command_logger
 
         # Step 1. Create root element (switch):
@@ -77,7 +90,7 @@ class RomeDriverHandler(DriverHandlerBase):
         port_Model = ConfigurationParser.get("driver_variable", "port_model")
 
         self._logger.info('switch: %s' % (str(switch_Model)))
-        self._logger.info('(Patch Panel: %s' % (str(blade_Model)))
+        self._logger.info('Patch Panel: %s' % (str(blade_Model)))
         self._logger.info('port: %s' % (str(port_Model)))
 
         resource_info = ResourceInfo()
@@ -93,6 +106,9 @@ class RomeDriverHandler(DriverHandlerBase):
             letter = "A"
         elif 'B' in address:
             letter = "B"
+        else:
+            self._logger.error('Resource address should specify MatrixA or MatrixB. Current address: '+ address)
+            raise Exception('Resource address should specify MatrixA or MatrixB')
 
         # Step 2. Create child resources for the root element (blades):
         for blade_no in range(1, 2):
@@ -104,32 +120,20 @@ class RomeDriverHandler(DriverHandlerBase):
             resource_info.add_child(blade_no, blade_resource)
 
             # Step 3. Create child resources for each root sub-resource (ports in blades)
-
-            if (letter is "A"):
+            if letter is "A":
                 for port_no in range(1, 129):
                     port_resource = ResourceInfo()
                     port_resource.set_depth(depth + 2)
                     port_resource.set_index(str(port_no).zfill(3))
                     port_resource.set_model_name(port_Model)
                     blade_resource.add_child(port_no, port_resource)
-            elif (letter is "B"):
+            elif letter is "B":
                 for port_no in range(129, 257):
                     port_resource = ResourceInfo()
                     port_resource.set_depth(depth + 2)
                     port_resource.set_index(str(port_no).zfill(3))
                     port_resource.set_model_name(port_Model)
                     blade_resource.add_child(port_no, port_resource)
-            else:
-                for port_no in range(1, 129):
-                    port_resource = ResourceInfo()
-                    port_resource.set_depth(depth + 2)
-                    port_resource.set_index(str(port_no).zfill(3))
-                    port_resource.set_model_name(port_Model)
-                    blade_resource.add_child(port_no, port_resource)
-
-                    # self._logger.info('switch: %s' % (str(vars(resource_info))))
-                    # removing the connection close as directed
-                    # self.connection.close()
 
         return resource_info.convert_to_xml()
 
@@ -145,6 +149,7 @@ class RomeDriverHandler(DriverHandlerBase):
         """
         # Collect port info
         self._logger = command_logger
+        self._create_connection()
 
         port1 = src_port[2].lstrip("0")
         port2 = dst_port[2].lstrip("0")
@@ -156,11 +161,11 @@ class RomeDriverHandler(DriverHandlerBase):
             command2 = "con cr e%s t w%s" % (port2, port1)
             self._connection.write(command1 + " \n")
             self._connection.write(command2 + " \n")
-            self._logger.info("Reached 1")
             self._logger.info("Connection Create Initiated")
-            self._logger.info("Telnet Connection Alive")
-            # self.connection.close()
-            # self._logger.info("Telnet Connection Closed")
+            #self._logger.info("Telnet Connection Alive")
+            # validate connection success (via the cli), until then, sleep to have more-real-life feedback to the user
+            time.sleep(40)
+            self._logger.info("Connection Create Ended")
 
         except Exception as ex:
             self._logger.error('Connection error: ' + ex.message)
@@ -178,6 +183,8 @@ class RomeDriverHandler(DriverHandlerBase):
 
         """
         self._logger = command_logger
+        self._create_connection()
+
         # Collect information for a simplex disconnection command
         # Collect port information
         port1 = src_port[2].lstrip("0")
@@ -189,9 +196,9 @@ class RomeDriverHandler(DriverHandlerBase):
             command = "con cr e%s t w%s" % (port1, port2)
             self._connection.write(command + "\n")
             self._logger.info("Connection Create Initiated")
-            # self.connection.close() // removing the connection close function
-            self._logger.info("Telnet Connection Closed")
-
+            # validate connection success (via the cli), until then, sleep to have more-real-life feedback to the user
+            time.sleep(20)
+            self._logger.info("Connection Create Ended")
 
         except Exception as ex:
             self._logger.error('Connection error: ' + ex.message)
@@ -208,6 +215,7 @@ class RomeDriverHandler(DriverHandlerBase):
 
         """
         self._logger = command_logger
+        self._create_connection()
 
         # Collect Port range information
         start_port = src_port[2].lstrip("0")
@@ -223,12 +231,13 @@ class RomeDriverHandler(DriverHandlerBase):
             self._logger.info("Disconnect Command Sent %s" % command)
             self._connection.write(yes_command)
             self._logger.info("%s Sent" % yes_command)
-            # self.connection.close()
-            self._logger.info("Telnet Connection Closed")
+            # validate connection success (via the cli), until then, sleep to have more-real-life feedback to the user
+            time.sleep(20)
+            self._logger.info("Connection Disconnection Ended")
 
         except Exception as ex:
             self._logger.error('Connection error: ' + ex.message)
-            raise Exception('Unable to create connection ')
+            raise Exception('Unable to clear connection ')
 
 
     def map_clear(self, src_port, dst_port, command_logger):
@@ -241,6 +250,7 @@ class RomeDriverHandler(DriverHandlerBase):
 
         """
         self._logger = command_logger
+        self._create_connection()
 
         # Collect information for a simplex disconnection command
         port1 = src_port[2].lstrip("0")
@@ -252,12 +262,13 @@ class RomeDriverHandler(DriverHandlerBase):
         try:
             self._connection.write(command + "\n")
             self._logger.info("Connection Disconnection Initiated")
-            # self.connection.close()
-            self._logger.info("Telnet Connection Closed")
+            # validate connection success (via the cli), until then, sleep to have more-real-life feedback to the user
+            time.sleep(20)
+            self._logger.info("Connection Disconnection Ended")
 
         except Exception as ex:
             self._logger.error('Connection error: ' + ex.message)
-            raise Exception('Unable to create connection ')
+            raise Exception('Unable to clear connection ')
 
 
     # Unused Method
