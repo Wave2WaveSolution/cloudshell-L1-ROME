@@ -8,11 +8,6 @@ from cloudshell.core.logger.qs_logger import get_qs_logger
 import telnetlib
 import time
 
-"""
-Created by: Hezekiah Valdez
-Date: 7/31/17
-Driver for the ROME. Connection commands should be sent to the machine after these methods are called.
-"""
 
 
 class RomeDriverHandler(DriverHandlerBase):
