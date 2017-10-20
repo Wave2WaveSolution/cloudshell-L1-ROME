@@ -31,10 +31,10 @@ VSVersionInfo(
         u'040904b0',
         [StringStruct(u'CompanyName', u'Qualisystems'),
         StringStruct(u'ProductName', u'L1 Driver'),
-        StringStruct(u'ProductVersion', u'1.0.0.0'),
+        StringStruct(u'ProductVersion', u'1.0.0.3'),
         StringStruct(u'InternalName', u'L1 Driver'),
         StringStruct(u'OriginalFilename', u'Rome.exe'),
-        StringStruct(u'FileVersion', u'96, 12, 19, 1'),
+        StringStruct(u'FileVersion', u'96, 12, 19, 2'),
         StringStruct(u'FileDescription', u'Rome L1 Driver'),
         StringStruct(u'LegalCopyright', u'Copyright 2016 Quali, Inc.'),
         StringStruct(u'LegalTrademarks', u'Quali, Inc.'),])
