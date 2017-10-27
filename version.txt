@@ -29,9 +29,9 @@ VSVersionInfo(
       [
       StringTable(
         u'040904b0',
-        [StringStruct(u'CompanyName', u'Qualisystems'),
+        [StringStruct(u'CompanyName', u'Wave-2-Wave'),
         StringStruct(u'ProductName', u'L1 Driver'),
-        StringStruct(u'ProductVersion', u'1.0.0.3'),
+        StringStruct(u'ProductVersion', u'1.0.0.4'),
         StringStruct(u'InternalName', u'L1 Driver'),
         StringStruct(u'OriginalFilename', u'Rome.exe'),
         StringStruct(u'FileVersion', u'96, 12, 19, 2'),

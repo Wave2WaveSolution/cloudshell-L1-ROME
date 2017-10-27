@@ -201,7 +201,7 @@ class RomeDriverHandler(DriverHandlerBase):
 
 
     def map_clear_to(self, src_port, dst_port, command_logger):
-        """Remove simplex/multi-cast/duplex connection ending on the destination port
+        """Remove simplex connection ending on the destination port
 
         :param src_port: (list) source port in format ["<address>", "<blade>", "<port>"]
         :param dst_port: (list) destination port in format ["<address>", "<blade>", "<port>"]
@@ -213,19 +213,16 @@ class RomeDriverHandler(DriverHandlerBase):
         self._create_connection()
 
         # Collect Port range information
-        start_port = src_port[2].lstrip("0")
-        end_port = dst_port[2].lstrip("0")
-        self._logger.info("Disconnection Range Initiated")
+        port1 = src_port[2].lstrip("0")
+        port2 = dst_port[2].lstrip("0")
 
         # Initiate a disconnect range command
-        command = "con di range w%s t w%s" % (start_port, end_port)
-        yes_command = "y \n"
-
         try:
+            self._logger.info("Connection Disconnection Initiated")
+            self._logger.info("Disconnecting e%s from w%s" % (port1, port2))
+            command = "con di e%s from w%s" % (port1, port2)
             self._connection.write(command + "\n")
-            self._logger.info("Disconnect Command Sent %s" % command)
-            self._connection.write(yes_command)
-            self._logger.info("%s Sent" % yes_command)
+            self._logger.info("Disconnect Command Sent: %s" % command)
             # validate connection success (via the cli), until then, sleep to have more-real-life feedback to the user
             time.sleep(20)
             self._logger.info("Connection Disconnection Ended")
@@ -250,15 +247,18 @@ class RomeDriverHandler(DriverHandlerBase):
         # Collect information for a simplex disconnection command
         port1 = src_port[2].lstrip("0")
         port2 = dst_port[2].lstrip("0")
-        self._logger.info("Disconnecting e%s from w%s" % (port1, port2))
-        command = "con di e%s f w%s" % (port1, port2)
 
         # Initiate Disconnection Command
         try:
-            self._connection.write(command + "\n")
+            command1 = "con di e%s f w%s" % (port1, port2)
+            command2 = "con di e%s f w%s" % (port2, port1)
             self._logger.info("Connection Disconnection Initiated")
+            self._logger.info("Disconnecting e%s from w%s" % (port1, port2))
+            self._connection.write(command1 + " \n")
+            self._logger.info("Disconnecting e%s from w%s" % (port2, port1))
+            self._connection.write(command2 + " \n")
             # validate connection success (via the cli), until then, sleep to have more-real-life feedback to the user
-            time.sleep(20)
+            time.sleep(40)
             self._logger.info("Connection Disconnection Ended")
 
         except Exception as ex:
