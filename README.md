@@ -22,6 +22,9 @@ ROME500 1.9.3.1
 
 4) Import "RomeResourceConfiguration.xml"
 
+5) While specifying the address for the resource, specify it as IPAddress:RequiredMatrix. 
+	Example: 192.168.10.111:MatrixA (for A-matrix selection, MatrixA(with out any spaces inbetween)
+
 ### Supported Functionality
 *
 * AutoLoad : Creates the sub-resources of the L1 switch
