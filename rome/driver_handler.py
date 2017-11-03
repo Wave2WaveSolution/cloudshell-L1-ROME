@@ -271,25 +271,13 @@ class RomeDriverHandler(DriverHandlerBase):
         try:
             command1 = "con di e%s f w%s" % (port1, port2)
             command2 = "con di e%s f w%s" % (port2, port1)
-            self._logger.info("Connection Disconnection Initiated")
+            self._logger.info("Connection Disconnecttion Initiated")
             self._logger.info("Disconnecting e%s from w%s" % (port1, port2))
             self._connection.write(command1 + " \n")
-            message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
-                                               'CONNECTION OPERATION SKIPPED(already done)',
-                                               ' FAILED'], self._command_timeout)
-            if message[0] == 0 or message[0] == 1:
-                self._logger.info("Connection Disconnection Successful")
-            else:
-                raise Exception('Failed to Disconnect.')
             self._logger.info("Disconnecting e%s from w%s" % (port2, port1))
             self._connection.write(command2 + " \n")
-            message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
-                                               'CONNECTION OPERATION SKIPPED(already done)',
-                                               ' FAILED'], self._command_timeout)
-            if message[0] == 0 or message[0] == 1:
-                self._logger.info("Connection Disconnection Successful")
-            else:
-                raise Exception('Failed to Disconnect.')
+            # validate connection success (via the cli), until then, sleep to have more-real-life feedback to the user
+            time.sleep(40)
             self._logger.info("Connection Disconnection Ended")
 
         except Exception as ex:
