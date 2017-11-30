@@ -7,6 +7,7 @@ from cloudshell.core.logger.qs_logger import get_qs_logger
 # importing telnet library python
 import telnetlib
 import time
+import re
 
 
 class RomeDriverHandler(DriverHandlerBase):
@@ -71,6 +72,7 @@ class RomeDriverHandler(DriverHandlerBase):
         :return: xml.etree.ElementTree.Element instance with all switch sub-resources (blades, ports)
         """
         self._logger = command_logger
+        self._create_connection()
 
         # Step 1. Create root element (switch):
         depth = 0
@@ -96,6 +98,18 @@ class RomeDriverHandler(DriverHandlerBase):
 
         letter = ""
 
+        self._connection.write('cc' + "\n!@#$")
+        self._connection.read_until('cc')
+        message = self._connection.expect(['!@#$'], 1)
+        self._connection.write('\b\b\b\b\b\b\b')
+        self._logger.info('cc output:\r\n'+message[2])
+        lines = message[2].split('\r\n')
+        mappings = {}
+        if len(lines) > 4:
+            for line in lines[4:-2]:
+                values = re.match('^E(\d+)?.*?W(\d+)?.*', line).groups()
+                mappings[values[1]] = values[0]
+
         if 'A' in address:
             letter = "A"
         elif 'B' in address:
@@ -120,6 +134,10 @@ class RomeDriverHandler(DriverHandlerBase):
                     port_resource.set_depth(depth + 2)
                     port_resource.set_index(str(port_no).zfill(3))
                     port_resource.set_model_name(port_Model)
+                    if str(port_no) in mappings:
+                        mapped_to = mappings[str(port_no)]
+                        self._logger.info('found mapping for port ' + str(port_no) + ', mapped to: ' + mapped_to)
+                        port_resource.set_mapping(address + '/1/' + mapped_to.zfill(3))
                     blade_resource.add_child(port_no, port_resource)
             elif letter is "B":
                 for port_no in range(129, 257):
@@ -127,6 +145,10 @@ class RomeDriverHandler(DriverHandlerBase):
                     port_resource.set_depth(depth + 2)
                     port_resource.set_index(str(port_no).zfill(3))
                     port_resource.set_model_name(port_Model)
+                    if str(port_no) in mappings:
+                        mapped_to = mappings[str(port_no)]
+                        self._logger.info('found mapping for port ' + str(port_no) + ', mapped to: ' + mapped_to)
+                        port_resource.set_mapping(address + '/1/' + mapped_to.zfill(3))
                     blade_resource.add_child(port_no, port_resource)
 
         return resource_info.convert_to_xml()
@@ -152,15 +174,17 @@ class RomeDriverHandler(DriverHandlerBase):
             command2 = "con cr e%s t w%s" % (port2, port1)
             self._logger.info("First Connection Create Initiated")
             self._connection.write(command1 + " \n")
+            self._connection.read_until(command1)
             message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
-                                               'CONNECTION OPERATION SKIPPED(already done)',
-                                               ' FAILED'], self._command_timeout)
+                                               '.*CONNECTION OPERATION SKIPPED\(already done\).*',
+                                               '.*FAILED.*'], self._command_timeout)
             if message[0] == 0 or message[0] == 1:
                 self._logger.info("Second Connection Create Initiated")
                 self._connection.write(command2 + " \n")
+                self._connection.read_until(command2)
                 message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
-                                                   'CONNECTION OPERATION SKIPPED(already done)',
-                                                   ' FAILED'], self._command_timeout)
+                                                   '.*CONNECTION OPERATION SKIPPED\(already done\).*',
+                                                   '.*FAILED.*'], self._command_timeout)
                 if message[0] == 0 or message[0] == 1:
                     self._logger.info("Connection Create Ended")
                 else:
@@ -168,9 +192,10 @@ class RomeDriverHandler(DriverHandlerBase):
                     self._logger.info("Disconnecting the First Connection")
                     command = "con di e%s from w%s" % (port1, port2)
                     self._connection.write(command + "\n")
+                    self._connection.read_until(command)
                     message1 = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
-                                                       'CONNECTION OPERATION SKIPPED(already done)',
-                                                       ' FAILED'], self._command_timeout)
+                                                       '.*CONNECTION OPERATION SKIPPED\(already done\).*',
+                                                       '.*FAILED.*'], self._command_timeout)
                     if message1[0] == 0 or message1[0] == 1:
                         self._logger.info("First Connection Disconnection Successful")
                         raise Exception('Failed during the second connection creation:' + message[2])
@@ -204,10 +229,11 @@ class RomeDriverHandler(DriverHandlerBase):
             self._logger.info("Connection Create Initiated")
             command = "con cr e%s t w%s" % (port1, port2)
             self._connection.write(command + "\n")
+            self._connection.read_until(command)
             # self._logger.info(self._connection.read_until('CONNECTION OPERATION SUCCEEDED ',30))
             message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
-                                               'CONNECTION OPERATION SKIPPED(already done)',
-                                               ' FAILED'], self._command_timeout)
+                                               '.*CONNECTION OPERATION SKIPPED\(already done\).*',
+                                               '.*FAILED.*'], self._command_timeout)
             if message[0] == 0 or message[0] == 1:
                 self._logger.info("Connection Creation Successful")
                 self._logger.info("Connection Create Ended")
@@ -238,9 +264,10 @@ class RomeDriverHandler(DriverHandlerBase):
             self._logger.info("Disconnecting e%s from w%s" % (port1, port2))
             command = "con di e%s from w%s" % (port1, port2)
             self._connection.write(command + "\n")
+            self._connection.read_until(command)
             message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
-                                               'CONNECTION OPERATION SKIPPED(already done)',
-                                               ' FAILED'], self._command_timeout)
+                                               '.*CONNECTION OPERATION SKIPPED\(already done\).*',
+                                               '.*FAILED.*'], self._command_timeout)
             if message[0] == 0 or message[0] == 1:
                 self._logger.info("Connection Disconnection Successful")
             else:
@@ -260,29 +287,21 @@ class RomeDriverHandler(DriverHandlerBase):
         :param command_logger: logging.Logger instance
         :return: None
         """
-        self._logger = command_logger
-        self._create_connection()
-
-        # Collect information for a simplex disconnection command
-        port1 = src_port[2].lstrip("0")
-        port2 = dst_port[2].lstrip("0")
-
-        # Initiate Disconnection Command
+        command_logger.info('map_clear: src_port ' + src_port + ', dst_port: ' + dst_port)
+        errors = 0
         try:
-            command1 = "con di e%s f w%s" % (port1, port2)
-            command2 = "con di e%s f w%s" % (port2, port1)
-            self._logger.info("Connection Disconnecttion Initiated")
-            self._logger.info("Disconnecting e%s from w%s" % (port1, port2))
-            self._connection.write(command1 + " \n")
-            self._logger.info("Disconnecting e%s from w%s" % (port2, port1))
-            self._connection.write(command2 + " \n")
-            # validate connection success (via the cli), until then, sleep to have more-real-life feedback to the user
-            time.sleep(40)
-            self._logger.info("Connection Disconnection Ended")
+            self.map_clear_to(src_port, dst_port, command_logger)
+        except:
+            errors = 1
+        try:
+            self.map_clear_to(dst_port, src_port, command_logger)
+        except:
+            errors = 1
 
-        except Exception as ex:
-            self._logger.error('Connection error: ' + ex.message)
-            raise Exception('Unable to clear connection ')
+        if errors > 0:
+            command_logger.error('map_clear had errors')
+            raise Exception('Part of the map_clear failed')
+
 
     # Unused Method
     def set_speed_manual(self, command_logger):
