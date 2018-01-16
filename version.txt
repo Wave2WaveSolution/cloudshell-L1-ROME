@@ -29,15 +29,15 @@ VSVersionInfo(
       [
       StringTable(
         u'040904b0',
-        [StringStruct(u'CompanyName', u'Qualisystems'),
+        [StringStruct(u'CompanyName', u'Wave-2-Wave'),
         StringStruct(u'ProductName', u'L1 Driver'),
-        StringStruct(u'ProductVersion', u'1.1.1'),
+        StringStruct(u'ProductVersion', u'1.1.2'),
         StringStruct(u'InternalName', u'L1 Driver'),
         StringStruct(u'OriginalFilename', u'Rome.exe'),
         StringStruct(u'FileVersion', u'96, 12, 19, 2'),
         StringStruct(u'FileDescription', u'Rome L1 Driver'),
-        StringStruct(u'LegalCopyright', u'Copyright 2016 Quali, Inc.'),
-        StringStruct(u'LegalTrademarks', u'Quali, Inc.'),])
+        StringStruct(u'LegalCopyright', u'Copyright 2016 Wave-2-Wave'),
+        StringStruct(u'LegalTrademarks', u'Wave-2-Wave'),])
       ]),
     VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
   ]

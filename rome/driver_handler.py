@@ -48,6 +48,15 @@ class RomeDriverHandler(DriverHandlerBase):
         self._logger.info('Device Prompt: ' + str(self._prompt))
         self._create_connection()
 
+    def _close_connection(self):
+        if self._connection:
+            self._logger.info('Closing Telnet Connection')
+            try:
+                self._connection.close()
+            except Exception as ex:
+                self._logger.info('Failed while closing connection: ' + ex.message)
+            self._connection = None
+
     def _create_connection(self):
         # Create Telnet session if needed
         if self._connection:
@@ -151,6 +160,7 @@ class RomeDriverHandler(DriverHandlerBase):
                         port_resource.set_mapping(address + '/1/' + mapped_to.zfill(3))
                     blade_resource.add_child(port_no, port_resource)
 
+        self._close_connection()
         return resource_info.convert_to_xml()
 
     def map_bidi(self, src_port, dst_port, command_logger):
@@ -170,41 +180,50 @@ class RomeDriverHandler(DriverHandlerBase):
 
         # Attempt to create a duplex connection
         try:
-            command1 = "con cr e%s t w%s" % (port1, port2)
-            command2 = "con cr e%s t w%s" % (port2, port1)
             self._logger.info("First Connection Create Initiated")
+            command1 = "con cr e%s t w%s" % (port1, port2)
+            command1_expect = ':E%s\[.+?W%s\[.+OP:connect' % (port1, port2)
+            command1_fail = ':e%s-w%s.+=connect' % (port1, port2)
             self._connection.write(command1 + " \n")
             self._connection.read_until(command1)
-            message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
-                                               '.*CONNECTION OPERATION SKIPPED\(already done\).*',
-                                               '.*FAILED.*'], self._command_timeout)
+            message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED' + command1_expect,
+                                               '.*CONNECTION OPERATION SKIPPED\(already done\)' + command1_expect,
+                                               '.*FAILED' + command1_fail], self._command_timeout)
             if message[0] == 0 or message[0] == 1:
                 self._logger.info("Second Connection Create Initiated")
+                command2 = "con cr e%s t w%s" % (port2, port1)
+                command2_expect = ':E%s\[.+?W%s\[.+OP:connect' % (port2, port1)
+                command2_fail = ':e%s-w%s.+=connect' % (port2, port1)
                 self._connection.write(command2 + " \n")
                 self._connection.read_until(command2)
-                message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
-                                                   '.*CONNECTION OPERATION SKIPPED\(already done\).*',
-                                                   '.*FAILED.*'], self._command_timeout)
+                message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED' + command2_expect,
+                                                   '.*CONNECTION OPERATION SKIPPED\(already done\)' + command2_expect,
+                                                   '.*FAILED' + command2_fail], self._command_timeout)
                 if message[0] == 0 or message[0] == 1:
                     self._logger.info("Connection Create Ended")
                 else:
                     self._logger.info("Unable to Create Second Connection")
                     self._logger.info("Disconnecting the First Connection")
                     command = "con di e%s from w%s" % (port1, port2)
+                    command_expect = ':E%s\[.+?W%s\[.+OP:disconnect' % (port1, port2)
+                    command_fail = ':e%s-w%s.+=disconnect' % (port1, port2)
                     self._connection.write(command + "\n")
                     self._connection.read_until(command)
-                    message1 = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
-                                                       '.*CONNECTION OPERATION SKIPPED\(already done\).*',
-                                                       '.*FAILED.*'], self._command_timeout)
+                    message1 = self._connection.expect(['CONNECTION OPERATION SUCCEEDED' + command_expect,
+                                                       '.*CONNECTION OPERATION SKIPPED\(already done\)' + command_expect,
+                                                       '.*FAILED' + command_fail], self._command_timeout)
+                    self._close_connection()
                     if message1[0] == 0 or message1[0] == 1:
                         self._logger.info("First Connection Disconnection Successful")
                         raise Exception('Failed during the second connection creation:' + message[2])
                     else:
                         raise Exception('Failed during the first disconnect:' + message[2])
             else:
+                self._close_connection()
                 raise Exception('Failed during the first connection creation:' + message[2])
 
         except Exception as ex:
+            self._close_connection()
             self._logger.error('Connection error: ' + ex.message)
             raise Exception('Unable to create connection, please contact the admin')
 
@@ -228,12 +247,14 @@ class RomeDriverHandler(DriverHandlerBase):
         try:
             self._logger.info("Connection Create Initiated")
             command = "con cr e%s t w%s" % (port1, port2)
+            command_expect = ':E%s\[.+?W%s\[.+OP:connect' % (port1, port2)
+            command_fail = ':e%s-w%s.+=connect' % (port1, port2)
             self._connection.write(command + "\n")
             self._connection.read_until(command)
             # self._logger.info(self._connection.read_until('CONNECTION OPERATION SUCCEEDED ',30))
-            message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
-                                               '.*CONNECTION OPERATION SKIPPED\(already done\).*',
-                                               '.*FAILED.*'], self._command_timeout)
+            message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED' + command_expect,
+                                               '.*CONNECTION OPERATION SKIPPED\(already done\)' + command_expect,
+                                               '.*FAILED' + command_fail], self._command_timeout)
             if message[0] == 0 or message[0] == 1:
                 self._logger.info("Connection Creation Successful")
                 self._logger.info("Connection Create Ended")
@@ -243,6 +264,8 @@ class RomeDriverHandler(DriverHandlerBase):
         except Exception as ex:
             self._logger.error('Connection error: ' + ex.message)
             raise Exception('Unable to create connection, please contact the admin')
+        finally:
+            self._close_connection()
 
     def map_clear_to(self, src_port, dst_port, command_logger):
         """Remove simplex connection ending on the destination port
@@ -263,22 +286,23 @@ class RomeDriverHandler(DriverHandlerBase):
             self._logger.info("Connection Disconnection Initiated")
             self._logger.info("Disconnecting e%s from w%s" % (port1, port2))
             command = "con di e%s from w%s" % (port1, port2)
+            command_expect = ':E%s\[.+?W%s\[.+OP:disconnect' % (port1, port2)
+            command_fail = ':e%s-w%s.+=disconnect' % (port1, port2)
             self._connection.write(command + "\n")
             self._connection.read_until(command)
-            message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
-                                               '.*CONNECTION OPERATION SKIPPED\(already done\).*',
-                                               '.*FAILED.*'], self._command_timeout)
+            message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED' + command_expect,
+                                               '.*CONNECTION OPERATION SKIPPED\(already done\)' + command_expect,
+                                               '.*FAILED' + command_fail], self._command_timeout)
             if message[0] == 0 or message[0] == 1:
                 self._logger.info("Connection Disconnection Successful")
             else:
                 raise Exception('Failed to Disconnect.')
-            #self._logger.info("Disconnect Command Sent: %s" % command)
-            # validate connection success (via the cli), until then, sleep to have more-real-life feedback to the user
-
 
         except Exception as ex:
             self._logger.error('Connection error: ' + ex.message)
             raise Exception('Unable to clear connection ')
+        finally:
+            self._close_connection()
 
     def map_clear(self, src_port, dst_port, command_logger):
         """Remove simplex/multi-cast/duplex connection ending on the destination port
