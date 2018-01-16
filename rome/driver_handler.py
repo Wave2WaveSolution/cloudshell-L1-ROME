@@ -7,7 +7,7 @@ from cloudshell.core.logger.qs_logger import get_qs_logger
 # importing telnet library python
 import telnetlib
 import time
-
+import re
 
 
 class RomeDriverHandler(DriverHandlerBase):
@@ -17,6 +17,9 @@ class RomeDriverHandler(DriverHandlerBase):
         self._blade_model = "Rome Patch Panel"
         self._port_model = "Rome Port"
         self._driver_name = ConfigurationParser.get("common_variable", "driver_name")
+        self._command_timeout = ConfigurationParser.get("driver_variable", "command_timeout")
+        if self._command_timeout is None:
+            self._command_timeout = 121
         self._logger = None
         self._connection = None
         self._device_address = ''
@@ -39,10 +42,10 @@ class RomeDriverHandler(DriverHandlerBase):
         # Print out device login information
         self._logger = command_logger
         self._logger.info('Attempting to Connect')
+        self._logger.info('Default command timeout: ' + str(self._command_timeout))
         self._logger.info('Device address is: ' + str(addr) + ', port: ' + str(self._port))
         self._logger.info('Username: ' + str(username))
         self._logger.info('Device Prompt: ' + str(self._prompt))
-
         self._create_connection()
 
     def _create_connection(self):
@@ -62,16 +65,14 @@ class RomeDriverHandler(DriverHandlerBase):
             self._connection.write(self._device_password + "\n")
             self._logger.info('Connected')
 
-
     def get_resource_description(self, address, command_logger=None):
         """Auto-load function to retrieve all information from the device
-
         :param address: (str) address attribute from the CloudShell portal
         :param command_logger: logging.Logger instance
         :return: xml.etree.ElementTree.Element instance with all switch sub-resources (blades, ports)
-
         """
         self._logger = command_logger
+        self._create_connection()
 
         # Step 1. Create root element (switch):
         depth = 0
@@ -97,12 +98,24 @@ class RomeDriverHandler(DriverHandlerBase):
 
         letter = ""
 
+        self._connection.write('cc' + "\n!@#$")
+        self._connection.read_until('cc')
+        message = self._connection.expect(['!@#$'], 1)
+        self._connection.write('\b\b\b\b\b\b\b')
+        self._logger.info('cc output:\r\n'+message[2])
+        lines = message[2].split('\r\n')
+        mappings = {}
+        if len(lines) > 4:
+            for line in lines[4:-2]:
+                values = re.match('^E(\d+)?.*?W(\d+)?.*', line).groups()
+                mappings[values[1]] = values[0]
+
         if 'A' in address:
             letter = "A"
         elif 'B' in address:
             letter = "B"
         else:
-            self._logger.error('Resource address should specify MatrixA or MatrixB. Current address: '+ address)
+            self._logger.error('Resource address should specify MatrixA or MatrixB. Current address: ' + address)
             raise Exception('Resource address should specify MatrixA or MatrixB')
 
         # Step 2. Create child resources for the root element (blades):
@@ -121,6 +134,10 @@ class RomeDriverHandler(DriverHandlerBase):
                     port_resource.set_depth(depth + 2)
                     port_resource.set_index(str(port_no).zfill(3))
                     port_resource.set_model_name(port_Model)
+                    if str(port_no) in mappings:
+                        mapped_to = mappings[str(port_no)]
+                        self._logger.info('found mapping for port ' + str(port_no) + ', mapped to: ' + mapped_to)
+                        port_resource.set_mapping(address + '/1/' + mapped_to.zfill(3))
                     blade_resource.add_child(port_no, port_resource)
             elif letter is "B":
                 for port_no in range(129, 257):
@@ -128,19 +145,20 @@ class RomeDriverHandler(DriverHandlerBase):
                     port_resource.set_depth(depth + 2)
                     port_resource.set_index(str(port_no).zfill(3))
                     port_resource.set_model_name(port_Model)
+                    if str(port_no) in mappings:
+                        mapped_to = mappings[str(port_no)]
+                        self._logger.info('found mapping for port ' + str(port_no) + ', mapped to: ' + mapped_to)
+                        port_resource.set_mapping(address + '/1/' + mapped_to.zfill(3))
                     blade_resource.add_child(port_no, port_resource)
 
         return resource_info.convert_to_xml()
 
-
     def map_bidi(self, src_port, dst_port, command_logger):
         """Create a bidirectional connection between source and destination ports
-
         :param src_port: (list) source port in format ["<address>", "<blade>", "<port>"]
         :param dst_port: (list) destination port in format ["<address>", "<blade>", "<port>"]
         :param command_logger: logging.Logger instance
         :return: None
-
         """
         # Collect port info
         self._logger = command_logger
@@ -154,28 +172,48 @@ class RomeDriverHandler(DriverHandlerBase):
         try:
             command1 = "con cr e%s t w%s" % (port1, port2)
             command2 = "con cr e%s t w%s" % (port2, port1)
+            self._logger.info("First Connection Create Initiated")
             self._connection.write(command1 + " \n")
-            self._connection.write(command2 + " \n")
-            self._logger.info("Connection Create Initiated")
-            #self._logger.info("Telnet Connection Alive")
-            # validate connection success (via the cli), until then, sleep to have more-real-life feedback to the user
-            time.sleep(40)
-            self._logger.info("Connection Create Ended")
+            self._connection.read_until(command1)
+            message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
+                                               '.*CONNECTION OPERATION SKIPPED\(already done\).*',
+                                               '.*FAILED.*'], self._command_timeout)
+            if message[0] == 0 or message[0] == 1:
+                self._logger.info("Second Connection Create Initiated")
+                self._connection.write(command2 + " \n")
+                self._connection.read_until(command2)
+                message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
+                                                   '.*CONNECTION OPERATION SKIPPED\(already done\).*',
+                                                   '.*FAILED.*'], self._command_timeout)
+                if message[0] == 0 or message[0] == 1:
+                    self._logger.info("Connection Create Ended")
+                else:
+                    self._logger.info("Unable to Create Second Connection")
+                    self._logger.info("Disconnecting the First Connection")
+                    command = "con di e%s from w%s" % (port1, port2)
+                    self._connection.write(command + "\n")
+                    self._connection.read_until(command)
+                    message1 = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
+                                                       '.*CONNECTION OPERATION SKIPPED\(already done\).*',
+                                                       '.*FAILED.*'], self._command_timeout)
+                    if message1[0] == 0 or message1[0] == 1:
+                        self._logger.info("First Connection Disconnection Successful")
+                        raise Exception('Failed during the second connection creation:' + message[2])
+                    else:
+                        raise Exception('Failed during the first disconnect:' + message[2])
+            else:
+                raise Exception('Failed during the first connection creation:' + message[2])
 
         except Exception as ex:
             self._logger.error('Connection error: ' + ex.message)
-            raise Exception('Unable to create connection ')
-
-
+            raise Exception('Unable to create connection, please contact the admin')
 
     def map_uni(self, src_port, dst_port, command_logger):
         """Create a unidirectional connection between source and destination ports
-
         :param src_port: (list) source port in format ["<address>", "<blade>", "<port>"]
         :param dst_port: (list) destination port in format ["<address>", "<blade>", "<port>"]
         :param command_logger: logging.Logger instance
         :return: None
-
         """
         self._logger = command_logger
         self._create_connection()
@@ -188,26 +226,34 @@ class RomeDriverHandler(DriverHandlerBase):
 
         # Create a simplex connection
         try:
+            self._logger.info("Connection Create Initiated")
             command = "con cr e%s t w%s" % (port1, port2)
             self._connection.write(command + "\n")
-            self._logger.info("Connection Create Initiated")
+            self._connection.read_until(command)
+            # self._logger.info(self._connection.read_until('CONNECTION OPERATION SUCCEEDED ',30))
+            message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
+                                               '.*CONNECTION OPERATION SKIPPED\(already done\).*',
+                                               '.*FAILED.*'], self._command_timeout)
+            if message[0] == 0 or message[0] == 1:
+                self._logger.info("Connection Creation Successful")
+                self._logger.info("Connection Create Ended")
+            else:
+                raise Exception('Failed to cross-connect.')
             # validate connection success (via the cli), until then, sleep to have more-real-life feedback to the user
-            time.sleep(20)
-            self._logger.info("Connection Create Ended")
-
         except Exception as ex:
             self._logger.error('Connection error: ' + ex.message)
-            raise Exception('Unable to create connection ')
-
+            raise Exception('Unable to create connection, please contact the admin')
 
     def map_clear_to(self, src_port, dst_port, command_logger):
         """Remove simplex connection ending on the destination port
+<<<<<<< HEAD
 
+=======
+>>>>>>> Wave2WaveSolution/master
         :param src_port: (list) source port in format ["<address>", "<blade>", "<port>"]
         :param dst_port: (list) destination port in format ["<address>", "<blade>", "<port>"]
         :param command_logger: logging.Logger instance
         :return: None
-
         """
         self._logger = command_logger
         self._create_connection()
@@ -222,25 +268,34 @@ class RomeDriverHandler(DriverHandlerBase):
             self._logger.info("Disconnecting e%s from w%s" % (port1, port2))
             command = "con di e%s from w%s" % (port1, port2)
             self._connection.write(command + "\n")
+<<<<<<< HEAD
             self._logger.info("Disconnect Command Sent: %s" % command)
+=======
+            self._connection.read_until(command)
+            message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
+                                               '.*CONNECTION OPERATION SKIPPED\(already done\).*',
+                                               '.*FAILED.*'], self._command_timeout)
+            if message[0] == 0 or message[0] == 1:
+                self._logger.info("Connection Disconnection Successful")
+            else:
+                raise Exception('Failed to Disconnect.')
+            #self._logger.info("Disconnect Command Sent: %s" % command)
+>>>>>>> Wave2WaveSolution/master
             # validate connection success (via the cli), until then, sleep to have more-real-life feedback to the user
-            time.sleep(20)
-            self._logger.info("Connection Disconnection Ended")
+
 
         except Exception as ex:
             self._logger.error('Connection error: ' + ex.message)
             raise Exception('Unable to clear connection ')
 
-
     def map_clear(self, src_port, dst_port, command_logger):
         """Remove simplex/multi-cast/duplex connection ending on the destination port
-
         :param src_port: (list) source port in format ["<address>", "<blade>", "<port>"]
         :param dst_port: (list) destination port in format ["<address>", "<blade>", "<port>"]
         :param command_logger: logging.Logger instance
         :return: None
-
         """
+<<<<<<< HEAD
         self._logger = command_logger
         self._create_connection()
 
@@ -260,16 +315,27 @@ class RomeDriverHandler(DriverHandlerBase):
             # validate connection success (via the cli), until then, sleep to have more-real-life feedback to the user
             time.sleep(40)
             self._logger.info("Connection Disconnection Ended")
+=======
+        command_logger.info('map_clear: src_port ' + src_port + ', dst_port: ' + dst_port)
+        errors = 0
+        try:
+            self.map_clear_to(src_port, dst_port, command_logger)
+        except:
+            errors = 1
+        try:
+            self.map_clear_to(dst_port, src_port, command_logger)
+        except:
+            errors = 1
+>>>>>>> Wave2WaveSolution/master
 
-        except Exception as ex:
-            self._logger.error('Connection error: ' + ex.message)
-            raise Exception('Unable to clear connection ')
+        if errors > 0:
+            command_logger.error('map_clear had errors')
+            raise Exception('Part of the map_clear failed')
 
 
     # Unused Method
     def set_speed_manual(self, command_logger):
         """Set speed manual - skipped command
-
         :param command_logger: logging.Logger instance
         :return: None
         """

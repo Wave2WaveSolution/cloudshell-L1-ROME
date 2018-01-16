@@ -3,7 +3,7 @@
     "driver_name": "Rome",
     "driver_module": ["rome.driver_handler", "RomeDriverHandler"],
     "connection_type": "telnet",
-    "connection_port": 53058,
+    "connection_port": 23,
     "device_prompt": "",
     "server_timeout": 10,
     "runtime_configuration": "rome_runtime_configuration.json"
