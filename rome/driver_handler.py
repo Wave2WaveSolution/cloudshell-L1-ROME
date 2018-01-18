@@ -212,20 +212,20 @@ class RomeDriverHandler(DriverHandlerBase):
                     message1 = self._connection.expect(['CONNECTION OPERATION SUCCEEDED' + command_expect,
                                                        '.*CONNECTION OPERATION SKIPPED\(already done\)' + command_expect,
                                                        '.*FAILED' + command_fail], self._command_timeout)
-                    self._close_connection()
+
                     if message1[0] == 0 or message1[0] == 1:
                         self._logger.info("First Connection Disconnection Successful")
                         raise Exception('Failed during the second connection creation:' + message[2])
                     else:
                         raise Exception('Failed during the first disconnect:' + message[2])
             else:
-                self._close_connection()
                 raise Exception('Failed during the first connection creation:' + message[2])
 
         except Exception as ex:
-            self._close_connection()
             self._logger.error('Connection error: ' + ex.message)
             raise Exception('Unable to create connection, please contact the admin')
+        finally:
+            self._close_connection()
 
     def map_uni(self, src_port, dst_port, command_logger):
         """Create a unidirectional connection between source and destination ports
