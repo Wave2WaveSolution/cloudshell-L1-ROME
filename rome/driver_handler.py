@@ -48,6 +48,15 @@ class RomeDriverHandler(DriverHandlerBase):
         self._logger.info('Device Prompt: ' + str(self._prompt))
         self._create_connection()
 
+    def _close_connection(self):
+        if self._connection:
+            self._logger.info('Closing Telnet Connection')
+            try:
+                self._connection.close()
+            except Exception as ex:
+                self._logger.info('Failed while closing connection: ' + ex.message)
+            self._connection = None
+
     def _create_connection(self):
         # Create Telnet session if needed
         if self._connection:
@@ -71,6 +80,11 @@ class RomeDriverHandler(DriverHandlerBase):
         :param command_logger: logging.Logger instance
         :return: xml.etree.ElementTree.Element instance with all switch sub-resources (blades, ports)
         """
+        #Validate properIP address
+        if ":" not in address:
+            self._logger.error('Invalid address entry found. Address found: ' + address)
+            raise  Exception('Invalid address found. Please check IP and matrix letter. Format: [IP]:[Matrix Letter]')
+
         self._logger = command_logger
         self._create_connection()
 
@@ -110,13 +124,58 @@ class RomeDriverHandler(DriverHandlerBase):
                 values = re.match('^E(\d+)?.*?W(\d+)?.*', line).groups()
                 mappings[values[1]] = values[0]
 
-        if 'A' in address:
+        #parse the string and only take the right side of the address
+        parsed_string = address.split(":")
+        try:
+            #If true place remove white space and look for a single letter notation.
+            matrix_letter = parsed_string[1].lower()
+            string = matrix_letter
+            matrix_letter = matrix_letter.replace(" ", "")
+        except IndexError:
+            self._logger.error('Resource address should specify MatrixA or MatrixB. Current address: ' + address)
+            raise Exception('Resource address should specify MatrixA or MatrixB. Format [IP]:[Matrix Letter].')
+        self._logger.info("Matrix Letter is: " + matrix_letter)
+
+        # parsing and validating the matrix address a/b
+        pattern = re.compile(r"(?i)(matrix)?(.+)?(A|B)")
+        mat = pattern.match(string)
+        f = ['a', 'a ', 'b', 'b ', 'm']
+        valid = False
+
+        if mat:
+            self.g3 = mat.group(3)
+            self.g2 = mat.group(2)
+            self.g1 = mat.group(1)
+            if self.g3 == 'a' or self.g3 == 'b':
+                if self.g2 not in f:
+                    valid = True
+        if not valid:
+            if self.g3 != 'a' or self.g3 != 'b':
+                self._logger.error('Resource address should specify MatrixA or MatrixB. Current address: ' + address)
+                raise Exception('Resource address should specify MatrixA or MatrixB')
+
+            if self.g2 in f:
+                self._logger.error('Multiple matrix letters found')
+                raise Exception('Resource address should only contain one matrix letter. Either A or B')
+
+        if self.g3 == 'a':
             letter = "A"
-        elif 'B' in address:
+        elif self.g3 == 'b':
             letter = "B"
         else:
-            self._logger.error('Resource address should specify MatrixA or MatrixB. Current address: ' + address)
-            raise Exception('Resource address should specify MatrixA or MatrixB')
+             self._logger.error('Resource address should specify MatrixA or MatrixB. Current address: ' + address)
+             raise Exception('Resource address should specify MatrixA or MatrixB')
+
+        # if ('a' in matrix_letter) and ('b' in matrix_letter):
+        #     self._logger.error('Multiple matrix letters found')
+        #     raise Exception('Resource address should only contain one matrix letter. Either A or B')
+        # elif 'a' in matrix_letter:
+        #     letter = "A"
+        # elif 'b' in matrix_letter:
+        #     letter = "B"
+        # else:
+        #      self._logger.error('Resource address should specify MatrixA or MatrixB. Current address: ' + address)
+        #      raise Exception('Resource address should specify MatrixA or MatrixB')
 
         # Step 2. Create child resources for the root element (blades):
         for blade_no in range(1, 2):
@@ -151,6 +210,7 @@ class RomeDriverHandler(DriverHandlerBase):
                         port_resource.set_mapping(address + '/1/' + mapped_to.zfill(3))
                     blade_resource.add_child(port_no, port_resource)
 
+        self._close_connection()
         return resource_info.convert_to_xml()
 
     def map_bidi(self, src_port, dst_port, command_logger):
@@ -170,32 +230,39 @@ class RomeDriverHandler(DriverHandlerBase):
 
         # Attempt to create a duplex connection
         try:
-            command1 = "con cr e%s t w%s" % (port1, port2)
-            command2 = "con cr e%s t w%s" % (port2, port1)
             self._logger.info("First Connection Create Initiated")
+            command1 = "con cr e%s t w%s" % (port1, port2)
+            command1_expect = ':E%s\[.+?W%s\[.+OP:connect' % (port1, port2)
+            command1_fail = ':e%s-w%s.+=connect' % (port1, port2)
             self._connection.write(command1 + " \n")
             self._connection.read_until(command1)
-            message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
-                                               '.*CONNECTION OPERATION SKIPPED\(already done\).*',
-                                               '.*FAILED.*'], self._command_timeout)
+            message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED' + command1_expect,
+                                               '.*CONNECTION OPERATION SKIPPED\(already done\)' + command1_expect,
+                                               '.*FAILED' + command1_fail], self._command_timeout)
             if message[0] == 0 or message[0] == 1:
                 self._logger.info("Second Connection Create Initiated")
+                command2 = "con cr e%s t w%s" % (port2, port1)
+                command2_expect = ':E%s\[.+?W%s\[.+OP:connect' % (port2, port1)
+                command2_fail = ':e%s-w%s.+=connect' % (port2, port1)
                 self._connection.write(command2 + " \n")
                 self._connection.read_until(command2)
-                message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
-                                                   '.*CONNECTION OPERATION SKIPPED\(already done\).*',
-                                                   '.*FAILED.*'], self._command_timeout)
+                message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED' + command2_expect,
+                                                   '.*CONNECTION OPERATION SKIPPED\(already done\)' + command2_expect,
+                                                   '.*FAILED' + command2_fail], self._command_timeout)
                 if message[0] == 0 or message[0] == 1:
                     self._logger.info("Connection Create Ended")
                 else:
                     self._logger.info("Unable to Create Second Connection")
                     self._logger.info("Disconnecting the First Connection")
                     command = "con di e%s from w%s" % (port1, port2)
+                    command_expect = ':E%s\[.+?W%s\[.+OP:disconnect' % (port1, port2)
+                    command_fail = ':e%s-w%s.+=disconnect' % (port1, port2)
                     self._connection.write(command + "\n")
                     self._connection.read_until(command)
-                    message1 = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
-                                                       '.*CONNECTION OPERATION SKIPPED\(already done\).*',
-                                                       '.*FAILED.*'], self._command_timeout)
+                    message1 = self._connection.expect(['CONNECTION OPERATION SUCCEEDED' + command_expect,
+                                                       '.*CONNECTION OPERATION SKIPPED\(already done\)' + command_expect,
+                                                       '.*FAILED' + command_fail], self._command_timeout)
+
                     if message1[0] == 0 or message1[0] == 1:
                         self._logger.info("First Connection Disconnection Successful")
                         raise Exception('Failed during the second connection creation:' + message[2])
@@ -207,6 +274,8 @@ class RomeDriverHandler(DriverHandlerBase):
         except Exception as ex:
             self._logger.error('Connection error: ' + ex.message)
             raise Exception('Unable to create connection, please contact the admin')
+        finally:
+            self._close_connection()
 
     def map_uni(self, src_port, dst_port, command_logger):
         """Create a unidirectional connection between source and destination ports
@@ -228,12 +297,14 @@ class RomeDriverHandler(DriverHandlerBase):
         try:
             self._logger.info("Connection Create Initiated")
             command = "con cr e%s t w%s" % (port1, port2)
+            command_expect = ':E%s\[.+?W%s\[.+OP:connect' % (port1, port2)
+            command_fail = ':e%s-w%s.+=connect' % (port1, port2)
             self._connection.write(command + "\n")
             self._connection.read_until(command)
             # self._logger.info(self._connection.read_until('CONNECTION OPERATION SUCCEEDED ',30))
-            message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
-                                               '.*CONNECTION OPERATION SKIPPED\(already done\).*',
-                                               '.*FAILED.*'], self._command_timeout)
+            message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED' + command_expect,
+                                               '.*CONNECTION OPERATION SKIPPED\(already done\)' + command_expect,
+                                               '.*FAILED' + command_fail], self._command_timeout)
             if message[0] == 0 or message[0] == 1:
                 self._logger.info("Connection Creation Successful")
                 self._logger.info("Connection Create Ended")
@@ -243,6 +314,8 @@ class RomeDriverHandler(DriverHandlerBase):
         except Exception as ex:
             self._logger.error('Connection error: ' + ex.message)
             raise Exception('Unable to create connection, please contact the admin')
+        finally:
+            self._close_connection()
 
     def map_clear_to(self, src_port, dst_port, command_logger):
         """Remove simplex connection ending on the destination port
@@ -263,22 +336,23 @@ class RomeDriverHandler(DriverHandlerBase):
             self._logger.info("Connection Disconnection Initiated")
             self._logger.info("Disconnecting e%s from w%s" % (port1, port2))
             command = "con di e%s from w%s" % (port1, port2)
+            command_expect = ':E%s\[.+?W%s\[.+OP:disconnect' % (port1, port2)
+            command_fail = ':e%s-w%s.+=disconnect' % (port1, port2)
             self._connection.write(command + "\n")
             self._connection.read_until(command)
-            message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED',
-                                               '.*CONNECTION OPERATION SKIPPED\(already done\).*',
-                                               '.*FAILED.*'], self._command_timeout)
+            message = self._connection.expect(['CONNECTION OPERATION SUCCEEDED' + command_expect,
+                                               '.*CONNECTION OPERATION SKIPPED\(already done\)' + command_expect,
+                                               '.*FAILED' + command_fail], self._command_timeout)
             if message[0] == 0 or message[0] == 1:
                 self._logger.info("Connection Disconnection Successful")
             else:
                 raise Exception('Failed to Disconnect.')
-            #self._logger.info("Disconnect Command Sent: %s" % command)
-            # validate connection success (via the cli), until then, sleep to have more-real-life feedback to the user
-
 
         except Exception as ex:
             self._logger.error('Connection error: ' + ex.message)
             raise Exception('Unable to clear connection ')
+        finally:
+            self._close_connection()
 
     def map_clear(self, src_port, dst_port, command_logger):
         """Remove simplex/multi-cast/duplex connection ending on the destination port
