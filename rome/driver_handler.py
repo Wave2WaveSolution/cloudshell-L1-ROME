@@ -1,10 +1,10 @@
-# importing functions
+# Importing functions
 from common.driver_handler_base import DriverHandlerBase
 from common.configuration_parser import ConfigurationParser
 from common.resource_info import ResourceInfo
 from cloudshell.core.logger.qs_logger import get_qs_logger
 
-# importing telnet library python
+# Importing telnet library python
 import telnetlib
 import time
 import re
