@@ -1,0 +1,16 @@
+This is the L1 Switch Driver for Wave 2 Wave Solution's ROME.
+The version of the driver is 1.1.1
+The driver supports unidirectional connections and bidirectional connections.
+
+Previous versions(1.1.0 and below)
+
+* The connection that was aleady present was considered to be an error.
+* Auto-Load function feature was not implemented.
+* Some connections still existed even after ending the blueprint.
+
+Current Version(1.1.4)
+
+* Error handling has been improved for the way the connections are being handled.
+* Implemented with Auto-Load feature for the device to sync up with ROME.
+* Implemented to remove all the connections, when blueprint ends.
+ 
