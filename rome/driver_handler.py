@@ -136,12 +136,13 @@ class RomeDriverHandler(DriverHandlerBase):
             raise Exception('Resource address should specify MatrixA or MatrixB. Format [IP]:[Matrix Letter].')
         self._logger.info("Matrix Letter is: " + matrix_letter)
 
-        # parsing and validating the matrix address a/b
+        # Validating the matrix address a/b
         pattern = re.compile(r"(?i)(matrix)?(.+)?(A|B)")
         mat = pattern.match(string)
         f = ['a', 'a ', 'b', 'b ', 'm']
         valid = False
 
+        #Check for validity of format
         if mat:
             self.g3 = mat.group(3)
             self.g2 = mat.group(2)
@@ -166,18 +167,7 @@ class RomeDriverHandler(DriverHandlerBase):
              self._logger.error('Resource address should specify MatrixA or MatrixB. Current address: ' + address)
              raise Exception('Resource address should specify MatrixA or MatrixB')
 
-        # if ('a' in matrix_letter) and ('b' in matrix_letter):
-        #     self._logger.error('Multiple matrix letters found')
-        #     raise Exception('Resource address should only contain one matrix letter. Either A or B')
-        # elif 'a' in matrix_letter:
-        #     letter = "A"
-        # elif 'b' in matrix_letter:
-        #     letter = "B"
-        # else:
-        #      self._logger.error('Resource address should specify MatrixA or MatrixB. Current address: ' + address)
-        #      raise Exception('Resource address should specify MatrixA or MatrixB')
-
-        # Step 2. Create child resources for the root element (blades):
+        #Step 2. Create child resources for the root element (blades):
         for blade_no in range(1, 2):
             blade_resource = ResourceInfo()
             blade_resource.set_depth(depth + 1)
@@ -361,7 +351,12 @@ class RomeDriverHandler(DriverHandlerBase):
         :param command_logger: logging.Logger instance
         :return: None
         """
-        command_logger.info('map_clear: src_port ' + src_port + ', dst_port: ' + dst_port)
+
+        #Isolate the port information from the src and dst lists
+        port1 = src_port[2].lstrip("0")
+        port2 = dst_port[2].lstrip("0")
+        command_logger.info('map_clear: src_port ' + port1 + ', dst_port: ' + port2)
+
         errors = 0
         try:
             self.map_clear_to(src_port, dst_port, command_logger)
