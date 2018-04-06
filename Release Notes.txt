@@ -8,9 +8,14 @@ Previous versions(1.1.0 and below)
 * Auto-Load function feature was not implemented.
 * Some connections still existed even after ending the blueprint.
 
-Current Version(1.1.4)
+(1.1.3)
 
 * Error handling has been improved for the way the connections are being handled.
 * Implemented with Auto-Load feature for the device to sync up with ROME.
 * Implemented to remove all the connections, when blueprint ends.
  
+Current Version (1.1.4)
+
+* Simplified Matrix naming. Can be named with a single letter or can include matrix. 
+   Format [IP]:[Matrix Letter]
+* Fixed concatonation logging errors during bidirectional disconnect
